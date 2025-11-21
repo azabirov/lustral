@@ -27,23 +27,15 @@
 ## Инструкция по деплою на Vercel
 
 1. **GitHub**:
-   - Создайте репозиторий на GitHub.
-   - Запушьте этот код:
-     ```bash
-     git init
-     git add .
-     git commit -m "Initial commit"
-     git branch -M main
-     git remote add origin <ваша-ссылка-на-репозиторий>
-     git push -u origin main
-     ```
+   - Код уже загружен в репозиторий: [https://github.com/azabirov/lustral](https://github.com/azabirov/lustral)
 
 2. **Vercel**:
    - Зайдите на [vercel.com](https://vercel.com)
    - Нажмите "Add New..." -> "Project"
-   - Выберите ваш репозиторий GitHub.
-   - В разделе **Environment Variables** добавьте `ADMIN_EMAIL` и `ADMIN_PASSWORD`.
+   - Найдите репозиторий `lustral` и нажмите **Import**.
+   - В разделе **Environment Variables** добавьте:
+     - `ADMIN_EMAIL`: `admin@lustral.ru` (или свой)
+     - `ADMIN_PASSWORD`: `admin123` (или свой сложный пароль)
    - Нажмите **Deploy**.
 
 Сайт будет доступен по ссылке, которую выдаст Vercel.
-

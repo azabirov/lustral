@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useHero } from '@/context/HeroContext';
-import { Save, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Save, Plus, Trash2, Image as ImageIcon, Upload } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminHeroPage() {
   const { heroData, updateHeroData } = useHero();
   const [formData, setFormData] = useState(heroData);
   const [isSaved, setIsSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     setFormData(heroData);
@@ -30,6 +32,40 @@ export default function AdminHeroPage() {
 
   const removeImage = (index: number) => {
     setFormData(prev => ({ ...prev, images: prev.images.filter((_, i) => i !== index) }));
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, index?: number) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `hero/${fileName}`;
+
+    setUploading(true);
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+      
+      if (index !== undefined) {
+        // Replace existing
+        handleImageChange(index, data.publicUrl);
+      } else {
+        // Add new
+        setFormData(prev => ({ ...prev, images: [...prev.images, data.publicUrl] }));
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Ошибка загрузки изображения');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -90,14 +126,22 @@ export default function AdminHeroPage() {
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-zinc-100 pb-2">
              <h2 className="text-lg font-medium text-zinc-900">Изображения слайдера</h2>
-             <button 
-               type="button" 
-               onClick={addImage}
-               className="flex items-center gap-1 text-sm text-black font-medium hover:text-zinc-600"
-             >
-               <Plus className="h-4 w-4" />
-               Добавить фото
-             </button>
+             <div className="flex items-center gap-2">
+                <label className={`flex items-center gap-1 text-sm text-black font-medium hover:text-zinc-600 cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
+                   <Upload className="h-4 w-4" />
+                   {uploading ? 'Загрузка...' : 'Загрузить'}
+                   <input type="file" className="hidden" accept="image/*" onChange={(e) => handleFileUpload(e)} disabled={uploading} />
+                </label>
+                <span className="text-zinc-300">|</span>
+                <button 
+                  type="button" 
+                  onClick={addImage}
+                  className="flex items-center gap-1 text-sm text-black font-medium hover:text-zinc-600"
+                >
+                  <Plus className="h-4 w-4" />
+                  URL
+                </button>
+             </div>
           </div>
           
           <div className="space-y-3">
@@ -133,7 +177,7 @@ export default function AdminHeroPage() {
             )}
           </div>
           <p className="text-xs text-zinc-500">
-             Изображения будут автоматически переключаться каждые 5 секунд. Рекомендуемый формат: Горизонтальный, высокое разрешение (2500px+).
+             Вы можете загрузить файл или вставить прямую ссылку.
           </p>
         </div>
 

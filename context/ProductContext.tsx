@@ -1,60 +1,74 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Product, products as initialProducts } from '@/lib/data';
+import { Product } from '@/lib/data';
+import { supabase } from '@/lib/supabase';
+import { addProductAction, updateProductAction, deleteProductAction } from '@/app/actions/admin';
 
 interface ProductContextType {
   products: Product[];
-  addProduct: (product: Omit<Product, 'id'>) => void;
-  updateProduct: (product: Product) => void;
-  deleteProduct: (id: string) => void;
+  addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
+  updateProduct: (product: Product) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  isLoading: boolean;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
 
 export function ProductProvider({ children }: { children: React.ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(initialProducts);
-  const [isMounted, setIsMounted] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Fetch products (READ is still public via anon key, which is fine)
   useEffect(() => {
-    setIsMounted(true);
-    const savedProducts = localStorage.getItem('lustral-products');
-    if (savedProducts) {
+    const fetchProducts = async () => {
       try {
-        const parsed = JSON.parse(savedProducts);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-           setProducts(parsed);
-        }
-      } catch (e) {
-        console.error('Failed to parse products', e);
+        const { data, error } = await supabase.from('products').select('*');
+        if (error) throw error;
+        if (data) setProducts(data as Product[]);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+
+    fetchProducts();
   }, []);
 
-  useEffect(() => {
-     if (isMounted) {
-        localStorage.setItem('lustral-products', JSON.stringify(products));
-     }
-  }, [products, isMounted]);
-
-  const addProduct = (newProduct: Omit<Product, 'id'>) => {
-    const product = {
-      ...newProduct,
-      id: Math.random().toString(36).substr(2, 9),
-    };
-    setProducts(prev => [...prev, product]);
+  // WRITE operations now go through Server Actions (Secure)
+  const addProduct = async (newProduct: Omit<Product, 'id'>) => {
+    try {
+      const savedProduct = await addProductAction(newProduct);
+      setProducts(prev => [...prev, savedProduct]);
+    } catch (error) {
+      console.error('Error adding product:', error);
+      alert('Ошибка: Недостаточно прав или сбой сервера');
+    }
   };
 
-  const updateProduct = (updatedProduct: Product) => {
-    setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+  const updateProduct = async (updatedProduct: Product) => {
+    try {
+      await updateProductAction(updatedProduct);
+      setProducts(prev => prev.map(p => p.id === updatedProduct.id ? updatedProduct : p));
+    } catch (error) {
+      console.error('Error updating product:', error);
+      alert('Ошибка: Недостаточно прав или сбой сервера');
+    }
   };
 
-  const deleteProduct = (id: string) => {
-    setProducts(prev => prev.filter(p => p.id !== id));
+  const deleteProduct = async (id: string) => {
+    try {
+      await deleteProductAction(id);
+      setProducts(prev => prev.filter(p => p.id !== id));
+    } catch (error) {
+      console.error('Error deleting product:', error);
+      alert('Ошибка: Недостаточно прав или сбой сервера');
+    }
   };
 
   return (
-    <ProductContext.Provider value={{ products, addProduct, updateProduct, deleteProduct }}>
+    <ProductContext.Provider value={{ products, addProduct, updateProduct, deleteProduct, isLoading }}>
       {children}
     </ProductContext.Provider>
   );
@@ -67,4 +81,3 @@ export function useProducts() {
   }
   return context;
 }
-

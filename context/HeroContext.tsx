@@ -1,6 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { updateHeroAction } from '@/app/actions/admin';
 
 interface HeroData {
   title: string;
@@ -11,7 +13,7 @@ interface HeroData {
 
 interface HeroContextType {
   heroData: HeroData;
-  updateHeroData: (data: HeroData) => void;
+  updateHeroData: (data: HeroData) => Promise<void>;
   isInitialized: boolean;
 }
 
@@ -30,32 +32,39 @@ const HeroContext = createContext<HeroContextType | undefined>(undefined);
 
 export function HeroProvider({ children }: { children: React.ReactNode }) {
   const [heroData, setHeroData] = useState<HeroData>(defaultHeroData);
-  const [isMounted, setIsMounted] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
 
+  // Read is public (fine)
   useEffect(() => {
-    setIsMounted(true);
-    const savedData = localStorage.getItem('lustral-hero');
-    if (savedData) {
+    const fetchHeroData = async () => {
       try {
-        const parsed = JSON.parse(savedData);
-        // Migration for old format if needed
-        if (!parsed.images && parsed.imageUrl) {
-          parsed.images = [parsed.imageUrl];
+        const { data, error } = await supabase
+          .from('site_settings')
+          .select('value')
+          .eq('key', 'hero_data')
+          .single();
+
+        if (data && data.value) {
+          setHeroData({ ...defaultHeroData, ...data.value });
         }
-        // Merge with defaults to ensure structure
-        setHeroData({ ...defaultHeroData, ...parsed });
       } catch (e) {
-        console.error('Failed to parse hero data', e);
+        console.error('Failed to load hero data', e);
+      } finally {
+        setIsInitialized(true);
       }
-    }
-    setIsInitialized(true);
+    };
+
+    fetchHeroData();
   }, []);
 
-  const updateHeroData = (data: HeroData) => {
-    setHeroData(data);
-    if (isMounted) {
-      localStorage.setItem('lustral-hero', JSON.stringify(data));
+  // Write is secured via Server Action
+  const updateHeroData = async (data: HeroData) => {
+    try {
+      setHeroData(data); // Optimistic update
+      await updateHeroAction(data);
+    } catch (e) {
+      console.error('Failed to save hero data:', e);
+      alert('Ошибка сохранения данных. Вы администратор?');
     }
   };
 

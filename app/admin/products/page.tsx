@@ -2,14 +2,16 @@
 
 import { useProducts } from '@/context/ProductContext';
 import { Product } from '@/lib/data';
-import { Plus, Pencil, Trash2, X, Save } from 'lucide-react';
+import { Plus, Pencil, Trash2, X, Save, Upload } from 'lucide-react';
 import Image from 'next/image';
 import { useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export default function AdminProductsPage() {
   const { products, addProduct, updateProduct, deleteProduct } = useProducts();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [formData, setFormData] = useState<Partial<Product>>({
     name: '',
     category: '',
@@ -36,7 +38,7 @@ export default function AdminProductsPage() {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.price) {
@@ -45,17 +47,45 @@ export default function AdminProductsPage() {
     }
 
     if (isEditing && formData.id) {
-       updateProduct(formData as Product);
+       await updateProduct(formData as Product);
     } else {
-       addProduct(formData as Omit<Product, 'id'>);
+       await addProduct(formData as Omit<Product, 'id'>);
     }
 
     setIsModalOpen(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Вы уверены, что хотите удалить этот товар?')) {
-       deleteProduct(id);
+       await deleteProduct(id);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    
+    const file = e.target.files[0];
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random()}.${fileExt}`;
+    const filePath = `products/${fileName}`;
+
+    setIsUploading(true);
+
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from('images')
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+      
+      setFormData(prev => ({ ...prev, image: data.publicUrl }));
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      alert('Ошибка загрузки изображения');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -181,14 +211,27 @@ export default function AdminProductsPage() {
                   </div>
 
                   <div>
-                     <label className="block text-sm font-medium text-zinc-700 mb-1">Изображение (URL)</label>
-                     <input 
-                        type="url" 
-                        value={formData.image} 
-                        onChange={e => setFormData(prev => ({ ...prev, image: e.target.value }))}
-                        className="block w-full border border-zinc-300 px-3 py-2 rounded-sm focus:ring-black focus:border-black text-sm"
-                        placeholder="https://..."
-                     />
+                     <label className="block text-sm font-medium text-zinc-700 mb-1">Изображение</label>
+                     <div className="flex gap-2">
+                        <input 
+                           type="url" 
+                           value={formData.image} 
+                           onChange={e => setFormData(prev => ({ ...prev, image: e.target.value }))}
+                           className="block w-full border border-zinc-300 px-3 py-2 rounded-sm focus:ring-black focus:border-black text-sm"
+                           placeholder="https://..."
+                        />
+                        <label className={`flex items-center justify-center px-3 border border-zinc-300 rounded-sm bg-zinc-50 cursor-pointer hover:bg-zinc-100 ${isUploading ? 'opacity-50' : ''}`}>
+                           <Upload className="h-4 w-4 text-zinc-600" />
+                           <input 
+                              type="file" 
+                              className="hidden" 
+                              accept="image/*" 
+                              onChange={handleFileUpload} 
+                              disabled={isUploading}
+                           />
+                        </label>
+                     </div>
+                     {isUploading && <p className="text-xs text-zinc-500 mt-1">Загрузка...</p>}
                   </div>
 
                   <div>
@@ -211,7 +254,8 @@ export default function AdminProductsPage() {
                      </button>
                      <button 
                         type="submit"
-                        className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-sm text-sm font-medium hover:bg-zinc-800"
+                        disabled={isUploading}
+                        className="flex items-center gap-2 bg-black text-white px-4 py-2 rounded-sm text-sm font-medium hover:bg-zinc-800 disabled:opacity-50"
                      >
                         <Save className="h-4 w-4" />
                         Сохранить
