@@ -65,3 +65,5 @@ create policy "Public Update Settings" on site_settings for update using (true);
 
 Теперь админка будет загружать файлы в этот бакет, а сайт — читать данные из таблиц.
 
+
+

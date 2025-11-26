@@ -46,3 +46,5 @@ INSERT INTO products (name, category, price, description, image) VALUES
   'https://images.unsplash.com/photo-1513506003011-3b03c8607d26?auto=format&fit=crop&q=80&w=1000'
 );
 
+
+
